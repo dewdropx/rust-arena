@@ -4,6 +4,7 @@ use macroquad::prelude::*;
 struct Player {
     position: Vec2,
     size: f32, speed: f32,
+    health: i32, max_health: i32,
 }
 
 struct Enemy {
@@ -18,6 +19,9 @@ struct Game {
 
     spawn_timer: f32,
     spawn_interval: f32,
+
+    damage_timer: f32,
+    damage_interval: f32,
 }
 
 struct Arena {
@@ -117,6 +121,8 @@ impl Game {
             ),
             size: player_size,
             speed: 250.0,
+            health: 100,
+            max_health: 100,
         };
 
         Self {
@@ -126,10 +132,17 @@ impl Game {
 
             spawn_timer: 0.0,
             spawn_interval: 2.0,
+
+            damage_timer: 0.0,
+            damage_interval: 0.5,
         }
     }
 
     fn update(&mut self, dt: f32) {
+        if self.player.health <= 0 {
+            return;
+        }
+
         self.arena.update();
         self.player.update(dt);
 
@@ -154,6 +167,27 @@ impl Game {
         for enemy in &mut self.enemies {
             enemy.update(player_position, dt);
         }
+
+        // update damage cooldown
+        if self.damage_timer > 0.0 {
+            self.damage_timer = (self.damage_timer - dt).max(0.0);
+        }
+
+        // check collisions with enemies
+        for enemy in &self.enemies {
+            let collision = check_collision(
+                self.player.position, self.player.size,
+                enemy.position, enemy.size,
+            );
+
+            if collision && self.damage_timer <= 0.0 {
+                self.player.health -= 10;
+                self.player.health = self.player.health.max(0);
+                self.damage_timer = self.damage_interval;
+
+                break;
+            }
+        }
     }
 
     fn draw(&self) {
@@ -162,6 +196,23 @@ impl Game {
 
         for enemy in &self.enemies {
             enemy.draw();
+        }
+
+        draw_text(
+            &format!("HP: {}/{}", self.player.health, self.player.max_health),
+            20.0, 30.0,
+            25.0,
+            WHITE,
+        );
+
+        if self.player.health <= 0 {
+            draw_text(
+                "GAME OVER",
+                screen_width() / 2.0 - 80.0,
+                screen_height() / 2.0,
+                40.0,
+                RED,
+            );
         }
     }
 }
@@ -232,13 +283,13 @@ fn random_spawn_positions(width: f32, height: f32) -> Vec2 {
         ),
 
         1 => Vec2::new(
-            width,
+            width - 30.0,
             macroquad::rand::gen_range(0.0, height),
         ),
 
         2 => Vec2::new(
             macroquad::rand::gen_range(0.0, width),
-            height,
+            height - 30.0,
         ),
 
         _ => Vec2::new(
@@ -246,6 +297,16 @@ fn random_spawn_positions(width: f32, height: f32) -> Vec2 {
             macroquad::rand::gen_range(0.0, height),
         ),
     }
+}
+
+fn check_collision(
+    pos_a: Vec2, size_a: f32,
+    pos_b: Vec2, size_b: f32,
+) -> bool {
+    pos_a.x < pos_b.x + size_b &&
+    pos_a.x + size_a > pos_b.x &&
+    pos_a.y < pos_b.y + size_b &&
+    pos_a.y + size_a > pos_b.y
 }
 
 #[macroquad::main("rust arena")]
