@@ -15,6 +15,9 @@ struct Game {
     player: Player,
     arena: Arena,
     enemies: Vec<Enemy>,
+
+    spawn_timer: f32,
+    spawn_interval: f32,
 }
 
 struct Arena {
@@ -116,16 +119,13 @@ impl Game {
             speed: 250.0,
         };
 
-        let enemies = vec![
-            Enemy::new(Vec2::new(100.0, 100.0)),
-            Enemy::new(Vec2::new(400.0, 150.0)),
-            Enemy::new(Vec2::new(200.0, 400.0)),
-        ];
-
         Self {
             player,
             arena,
-            enemies,
+            enemies: Vec::new(),
+
+            spawn_timer: 0.0,
+            spawn_interval: 2.0,
         }
     }
 
@@ -133,6 +133,22 @@ impl Game {
         self.arena.update();
         self.player.update(dt);
 
+        // update spawn timer
+        self.spawn_timer += dt;
+
+        // spawn enemy when interval has elapsed
+        if self.spawn_timer >= self.spawn_interval {
+            self.spawn_timer -= self.spawn_interval;
+
+            let position = random_spawn_positions(
+                self.arena.width,
+                self.arena.height,
+            );
+
+            self.enemies.push(Enemy::new(position));
+        }
+
+        // update existing enemies
         let player_position = self.player.position;
 
         for enemy in &mut self.enemies {
@@ -203,6 +219,32 @@ impl Arena {
             3.0,
             WHITE,
         );
+    }
+}
+
+fn random_spawn_positions(width: f32, height: f32) -> Vec2 {
+    let edge = macroquad::rand::gen_range(0, 4);
+
+    match edge {
+        0 => Vec2::new(
+            macroquad::rand::gen_range(0.0, width),
+            0.0,
+        ),
+
+        1 => Vec2::new(
+            width,
+            macroquad::rand::gen_range(0.0, height),
+        ),
+
+        2 => Vec2::new(
+            macroquad::rand::gen_range(0.0, width),
+            height,
+        ),
+
+        _ => Vec2::new(
+            0.0,
+            macroquad::rand::gen_range(0.0, height),
+        ),
     }
 }
 
