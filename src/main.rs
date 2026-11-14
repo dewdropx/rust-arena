@@ -1,6 +1,12 @@
 use macroquad::prelude::*;
 
+// structs
 struct Player {
+    position: Vec2,
+    size: f32, speed: f32,
+}
+
+struct Enemy {
     position: Vec2,
     size: f32, speed: f32,
 }
@@ -8,6 +14,7 @@ struct Player {
 struct Game {
     player: Player,
     arena: Arena,
+    enemies: Vec<Enemy>,
 }
 
 struct Arena {
@@ -15,6 +22,7 @@ struct Arena {
     height: f32,
 }
 
+// methods
 impl Player {
     fn update(&mut self, dt: f32) {
         let mut direction = Vec2::ZERO;
@@ -63,6 +71,37 @@ impl Player {
     }
 }
 
+impl Enemy {
+    fn new(position: Vec2) -> Self {
+        Self {
+            position,
+            size: 30.0,
+            speed: 100.0,
+        }
+    }
+
+    fn update(&mut self, player_position: Vec2, dt: f32) {
+        // calculate direction towards player
+        let mut direction = player_position - self.position;
+
+        // normalize direction
+        if direction.length_squared() > 0.0 {
+            direction = direction.normalize();
+        }
+
+        // move towards player
+        self.position += direction * self.speed * dt;
+    }
+
+    fn draw(&self) {
+        draw_rectangle(
+            self.position.x, self.position.y,
+            self.size, self.size,
+            RED,
+        );
+    }
+}
+
 impl Game {
     fn new() -> Self {
         let arena = Arena::new();
@@ -77,20 +116,37 @@ impl Game {
             speed: 250.0,
         };
 
+        let enemies = vec![
+            Enemy::new(Vec2::new(100.0, 100.0)),
+            Enemy::new(Vec2::new(400.0, 150.0)),
+            Enemy::new(Vec2::new(200.0, 400.0)),
+        ];
+
         Self {
             player,
             arena,
+            enemies,
         }
     }
 
     fn update(&mut self, dt: f32) {
         self.arena.update();
         self.player.update(dt);
+
+        let player_position = self.player.position;
+
+        for enemy in &mut self.enemies {
+            enemy.update(player_position, dt);
+        }
     }
 
     fn draw(&self) {
         self.arena.draw();
         self.player.draw();
+
+        for enemy in &self.enemies {
+            enemy.draw();
+        }
     }
 }
 
