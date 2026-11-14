@@ -1,7 +1,7 @@
 use macroquad::prelude::*;
 
 struct Player {
-    x: f32, y: f32,
+    position: Vec2,
     size: f32, speed: f32,
 }
 
@@ -17,35 +17,46 @@ struct Arena {
 
 impl Player {
     fn update(&mut self, dt: f32) {
+        let mut direction = Vec2::ZERO;
+
         // handle keyboard input
         if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
-            self.x += self.speed * dt;
+            direction.x += 1.0;
         }
 
         if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
-            self.x -= self.speed * dt;
+            direction.x -= 1.0;
         }
 
         if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
-            self.y += self.speed * dt;
+            direction.y += 1.0;
         }
 
         if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
-            self.y -= self.speed * dt;
+            direction.y -= 1.0;
         }
 
-        self.x = self.x.clamp(
+        // normalize direction if the player is moving
+        if direction.length_squared() > 0.0 {
+            direction = direction.normalize();
+        }
+
+        // apply movement
+        self.position += direction * self.speed * dt;
+
+        // keep player inside the window
+        self.position.x = self.position.x.clamp(
             0.0, screen_width() - self.size
         );
 
-        self.y = self.y.clamp(
+        self.position.y = self.position.y.clamp(
             0.0, screen_height() - self.size
         );
     }
 
     fn draw(&self) {
         draw_rectangle(
-            self.x, self.y,
+            self.position.x, self.position.y,
             self.size, self.size,
             GREEN,
         );
@@ -58,8 +69,10 @@ impl Game {
         let player_size = 40.0;
 
         let player = Player {
-            x: (arena.width - player_size) / 2.0,
-            y: (arena.height - player_size) / 2.0,
+            position: Vec2::new(
+                (arena.width - player_size) / 2.0,
+                (arena.height - player_size) / 2.0,
+            ),
             size: player_size,
             speed: 250.0,
         };
