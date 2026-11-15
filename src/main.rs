@@ -10,6 +10,7 @@ struct Player {
 struct Enemy {
     position: Vec2,
     size: f32, speed: f32,
+    health: i32,
 }
 
 struct Game {
@@ -22,11 +23,24 @@ struct Game {
 
     damage_timer: f32,
     damage_interval: f32,
+
+    projectiles: Vec<Projectile>,
+
+    attack_timer: f32,
+    attack_interval: f32,
 }
 
 struct Arena {
     width: f32,
     height: f32,
+}
+
+struct Projectile {
+    position: Vec2,
+    velocity: Vec2,
+    size: f32,
+    damage: i32,
+    lifetime: f32,
 }
 
 // methods
@@ -84,6 +98,7 @@ impl Enemy {
             position,
             size: 30.0,
             speed: 100.0,
+            health: 30,
         }
     }
 
@@ -135,6 +150,11 @@ impl Game {
 
             damage_timer: 0.0,
             damage_interval: 0.5,
+
+            projectiles: Vec::new(),
+
+            attack_timer: 0.0,
+            attack_interval: 0.8,
         }
     }
 
@@ -169,6 +189,42 @@ impl Game {
         }
 
         self.separate_enemies();
+
+        self.attack_timer += dt;
+
+        if self.attack_timer >= self.attack_interval {
+            self.attack_timer -= self.attack_interval;
+            self.auto_attack();
+        }
+
+        // update projectile positions
+        for projectile in &mut self.projectiles {
+            projectile.update(dt);
+        }
+
+        // check projectile enemy collisions
+        for projectile in &mut self.projectiles {
+            for enemy in &mut self.enemies {
+                let collision = check_collision(
+                    projectile.position, projectile.size,
+                    enemy.position, enemy.size,
+                );
+
+                if collision {
+                    enemy.health -= projectile.damage;
+
+                    // remove projectile after successful hit
+                    projectile.lifetime = 0.0;
+                    break;
+                }
+            }
+        }
+
+        // remove expired projectiles
+        self.projectiles.retain(|p| p.lifetime > 0.0);
+
+        // remove defeated enemies
+        self.enemies.retain(|e| e.health > 0);
 
         // update damage cooldown
         if self.damage_timer > 0.0 {
@@ -228,6 +284,11 @@ impl Game {
             enemy.draw();
         }
 
+        for projectile in &self.projectiles {
+            projectile.draw();
+        }
+
+        // HUD
         draw_text(
             &format!("HP: {}/{}", self.player.health, self.player.max_health),
             20.0, 30.0,
@@ -297,6 +358,40 @@ impl Game {
             }
         }
     }
+
+    fn auto_attack(&mut self) {
+        if self.enemies.is_empty() {
+            return;
+        }
+
+        // find the center of the player
+        let player_center = self.player.position + Vec2::splat(self.player.size / 2.0);
+
+        // find nearest enemy
+        let mut target_position = self.enemies[0].position + Vec2::splat(self.enemies[0].size / 2.0);
+        let mut closest_distance = player_center.distance_squared(target_position);
+
+        for enemy in &self.enemies {
+            let enemy_center = enemy.position + Vec2::splat(enemy.size / 2.0);
+            let distance = player_center.distance_squared(enemy_center);
+
+            if distance < closest_distance {
+                closest_distance = distance;
+                target_position = enemy_center;
+            }
+        }
+
+        // calculate the direction towards the target
+        let mut direction = target_position - player_center;
+
+        if direction.length_squared() > 0.0 {
+            direction = direction.normalize();
+
+            self.projectiles.push(
+                Projectile::new(player_center, direction)
+            );
+        }
+    }
 }
 
 impl Arena {
@@ -351,6 +446,31 @@ impl Arena {
             self.width, self.height,
             3.0,
             WHITE,
+        );
+    }
+}
+
+impl Projectile {
+    fn new(position: Vec2, direction: Vec2) -> Self {
+        Self {
+            position,
+            velocity: direction * 500.0,
+            size: 10.0,
+            damage: 10,
+            lifetime: 2.0,
+        }
+    }
+
+    fn update(&mut self, dt: f32) {
+        self.position += self.velocity * dt;
+        self.lifetime -= dt;
+    }
+
+    fn draw(&self) {
+        draw_rectangle(
+            self.position.x, self.position.y,
+            self.size, self.size,
+            YELLOW,
         );
     }
 }
