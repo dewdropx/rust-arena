@@ -168,6 +168,8 @@ impl Game {
             enemy.update(player_position, dt);
         }
 
+        self.separate_enemies();
+
         // update damage cooldown
         if self.damage_timer > 0.0 {
             self.damage_timer = (self.damage_timer - dt).max(0.0);
@@ -183,8 +185,36 @@ impl Game {
             if collision && self.damage_timer <= 0.0 {
                 self.player.health -= 10;
                 self.player.health = self.player.health.max(0);
-                self.damage_timer = self.damage_interval;
 
+                // calculate direction from enemy to player
+                let player_center = self.player.position + Vec2::splat(self.player.size / 2.0);
+                let enemy_center = enemy.position + Vec2::splat(enemy.size / 2.0);
+
+                let mut knockback_dir = player_center - enemy_center;
+
+                // handle the rare case where both the centers are identical
+                if knockback_dir.length_squared() > 0.0 {
+                    knockback_dir = knockback_dir.normalize();
+                }
+                else {
+                    knockback_dir = Vec2::new(1.0, 0.0);
+                }
+
+                // push the player away from enemy
+                self.player.position += knockback_dir * 25.0;
+
+                // keep player inside the arena
+                self.player.position.x = self.player.position.x.clamp(
+                    0.0,
+                    self.arena.width - self.player.size,
+                );
+
+                self.player.position.y = self.player.position.y.clamp(
+                    0.0,
+                    self.arena.height - self.player.size,
+                );
+
+                self.damage_timer = self.damage_interval;
                 break;
             }
         }
@@ -213,6 +243,58 @@ impl Game {
                 40.0,
                 RED,
             );
+        }
+    }
+
+    fn separate_enemies(&mut self) {
+        let count = self.enemies.len();
+
+        for i in 0..count {
+            for j in (i + 1)..count {
+                // split the vector so that we can mutably access 2 different enemies at the same time
+                let (left, right) = self.enemies.split_at_mut(j);
+
+                let enemy_a = &mut left[i];
+                let enemy_b = &mut right[0];
+
+                let overlap_x = (enemy_a.position.x + enemy_a.size).min(enemy_b.position.x + enemy_b.size)
+                                - (enemy_a.position.x).max(enemy_b.position.x);
+
+                let overlap_y = (enemy_a.position.y + enemy_a.size).min(enemy_b.position.y + enemy_b.size)
+                                - (enemy_a.position.y).max(enemy_b.position.y);
+
+                // only resolve actual overlaps
+                if overlap_x > 0.0 && overlap_y > 0.0 {
+                    let center_a = enemy_a.position + Vec2::splat(enemy_a.size / 2.0);
+                    let center_b = enemy_b.position + Vec2::splat(enemy_b.size / 2.0);
+
+                    // resolve along the axis with less overlap
+                    if overlap_x < overlap_y {
+                        let push = overlap_x / 2.0;
+
+                        if center_a.x < center_b.x {
+                            enemy_a.position.x -= push;
+                            enemy_b.position.x += push;
+                        }
+                        else {
+                            enemy_a.position.x += push;
+                            enemy_b.position.x -= push;
+                        }
+                    }
+                    else {
+                        let push = overlap_y / 2.0;
+
+                        if center_a.y < center_b.y {
+                            enemy_a.position.y -= push;
+                            enemy_b.position.y += push;
+                        }
+                        else {
+                            enemy_a.position.y += push;
+                            enemy_b.position.y -= push;
+                        }
+                    }
+                }
+            }
         }
     }
 }
